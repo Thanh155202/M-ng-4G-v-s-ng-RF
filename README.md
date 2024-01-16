@@ -1,1 +1,1 @@
-Mạng 4G và sóng RF
+Mang 4G and song RF
