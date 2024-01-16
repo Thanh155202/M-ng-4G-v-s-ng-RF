@@ -2,6 +2,7 @@ import cv2
 import socket
 import pickle
 import struct
+import zlib
 
 # Khởi tạo socket
 client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -37,6 +38,7 @@ while True:
   data = data[msg_size:]
 
   try:
+    frame_data = zlib.decompress(frame_data) # Giải nén khung hình
     frame = pickle.loads(frame_data)
   except pickle.UnpicklingError as e:
     print(f"Error unpickling frame: {e}")

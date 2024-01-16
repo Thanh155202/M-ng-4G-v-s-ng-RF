@@ -2,6 +2,8 @@ import cv2
 import socket
 import pickle
 import struct
+import imutils
+import zlib
 
 # Khởi tạo camera của máy tính thứ nhất
 vid = cv2.VideoCapture(0)  # 0 là camera mặc định của máy tính
@@ -26,7 +28,9 @@ while True:
   if client_socket:
     while vid.isOpened():
       ret, frame = vid.read()
+      frame = imutils.resize(frame, width=320) # Giảm kích thước khung hình
       a = pickle.dumps(frame)
+      a = zlib.compress(a, 9) # Nén khung hình
       message = struct.pack("Q", len(a)) + a
       client_socket.sendall(message)
 
