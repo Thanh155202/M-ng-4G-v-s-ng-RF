@@ -3,50 +3,70 @@ import socket
 import pickle
 import struct
 import zlib
-import threading
+import time
 
 # Khởi tạo socket
-client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-host_ip = '172.20.10.3'  # Điền IP của máy chủ (máy tính thứ nhất)
+client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+host_ip = '192.168.254.186'  # Điền IP của máy chủ (máy tính thứ nhất)
 port = 9999
+client_socket.connect((host_ip, port))
+data = b""
+payload_size = struct.calcsize("Q")
 
-# Hàm xử lý việc nhận dữ liệu
-def receive_video():
-    while True:
-        data, addr = client_socket.recvfrom(64 * 1024)  # Tăng kích thước bộ nhớ đệm
-        payload_size = struct.calcsize("Q")
-        packed_msg_size = data[:payload_size]
-        data = data[payload_size:]
+# Biến để đếm số khung hình trong một giây
+fps_counter = 0
+start_time = time.time()
 
-        try:
-            msg_size = struct.unpack("Q", packed_msg_size)[0]
-        except struct.error as e:
-            print(f"Error unpacking message size: {e}")
-            break
-
-        while len(data) < msg_size:
-            packet = client_socket.recvfrom(64 * 1024)  # Tăng kích thước bộ nhớ đệm
-            data += packet[0]
-
-        frame_data = data[:msg_size]
-        data = data[msg_size:]
-
-        try:
-            frame_data = zlib.decompress(frame_data)  # Giải nén khung hình
-            frame = pickle.loads(frame_data)
-        except pickle.UnpicklingError as e:
-            print(f"Error unpickling frame: {e}")
-            break
-
-        cv2.imshow("RECEIVING VIDEO", frame)
-        key = cv2.waitKey(1) & 0xFF
-        if key == ord('q'):
-            break
-
-# Tạo một luồng mới cho việc nhận dữ liệu
-receive_thread = threading.Thread(target=receive_video)
-receive_thread.start()
-
-# Main thread chờ nhận dữ liệu
 while True:
-    pass
+    while len(data) < payload_size:
+        packet = client_socket.recv(4 * 1024)  # 4K
+        if not packet:
+            break
+        data += packet
+
+    packed_msg_size = data[:payload_size]
+    data = data[payload_size:]
+
+    try:
+        msg_size = struct.unpack("Q", packed_msg_size)[0]
+    except struct.error as e:
+        print(f"Error unpacking message size: {e}")
+        break
+
+    while len(data) < msg_size:
+        packet = client_socket.recv(4 * 1024)
+        if not packet:
+            break
+        data += packet
+
+    frame_data = data[:msg_size]
+    data = data[msg_size:]
+
+    try:
+        frame_data = zlib.decompress(frame_data)  # Giải nén khung hình
+        frame = pickle.loads(frame_data)
+        fps_counter += 1
+    except pickle.UnpicklingError as e:
+        print(f"Error unpickling frame: {e}")
+        break
+
+    # Resize khung hình để phù hợp với kích thước màn hình của máy khách
+    frame = cv2.resize(frame, (800, 600))
+
+    # Hiển thị FPS bằng putText
+    cv2.putText(img=frame, text=f'FPS: {fps_counter}', org=(0, 30), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=1,
+                color=(0, 0, 255), thickness=2)
+
+    cv2.imshow("RECEIVING VIDEO", frame)
+
+    key = cv2.waitKey(1) & 0xFF
+    if key == ord('q'):
+        break
+
+    # Tính toán và hiển thị FPS mỗi giây
+    elapsed_time = time.time() - start_time
+    if elapsed_time >= 1.0:
+        fps_counter = 0
+        start_time = time.time()
+
+client_socket.close()

@@ -1,3 +1,5 @@
+import time
+
 import cv2
 import socket
 import pickle
@@ -28,13 +30,22 @@ while True:
   if client_socket:
     while vid.isOpened():
       ret, frame = vid.read()
-      frame = imutils.resize(frame, width=320) # Giảm kích thước khung hình
+      start = time.perf_counter()
+
+      frame = imutils.resize(frame, width=500) # Giảm kích thước khung hình
       a = pickle.dumps(frame)
       a = zlib.compress(a, 9) # Nén khung hình
       message = struct.pack("Q", len(a)) + a
       client_socket.sendall(message)
 
+      end = time.perf_counter()
+      total_time = end - start
+
+      fps = (int)(1 / total_time)
+      cv2.putText(img=frame, text=f'FPS {fps}', org=(0, 50), fontFace=cv2.FONT_HERSHEY_COMPLEX, fontScale=1,
+                  color=(0, 0, 255), thickness=2)
       cv2.imshow('TRANSMITTING VIDEO', frame)
+
       key = cv2.waitKey(1) & 0xFF
       if key == ord('q'):
         client_socket.close()
